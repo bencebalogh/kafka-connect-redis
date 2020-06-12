@@ -76,6 +76,9 @@ class RedisConnectorConfig extends AbstractConfig {
   public final static String CONNECTION_RETRY_DELAY_MS_CONF = "redis.connection.retry.delay.ms";
   public final static String CONNECTION_RETRY_DELAY_MS_DOC = "The amount of milliseconds to wait between redis connection attempts.";
 
+  public final static String SENTINEL_MASTERID_CONF = "redis.sentinel.masterid";
+  public final static String SENTINEL_MASTERID_DOC = "The Sentinel Master Id. Only applied when redis.client.mode is sentinel";
+
   public final ClientMode clientMode;
   public final List<HostAndPort> hosts;
 
@@ -96,6 +99,8 @@ class RedisConnectorConfig extends AbstractConfig {
   public final String truststorePassword;
   public final int retryDelay;
   public final int maxAttempts;
+
+  public final String sentinelMasterId;
 
 
   public RedisConnectorConfig(ConfigDef config, Map<?, ?> originals) {
@@ -121,6 +126,7 @@ class RedisConnectorConfig extends AbstractConfig {
     this.truststorePassword = Strings.isNullOrEmpty(trustPassword) ? null : trustPassword;
     this.maxAttempts = getInt(CONNECTION_ATTEMPTS_CONF);
     this.retryDelay = getInt(CONNECTION_RETRY_DELAY_MS_CONF);
+    this.sentinelMasterId = getString(SENTINEL_MASTERID_CONF);
   }
 
   public static ConfigDef config() {
@@ -231,22 +237,42 @@ class RedisConnectorConfig extends AbstractConfig {
                 .validator(ConfigDef.Range.atLeast(100))
                 .importance(ConfigDef.Importance.MEDIUM)
                 .build()
+        ).define(
+            ConfigKeyBuilder.of(SENTINEL_MASTERID_CONF, ConfigDef.Type.STRING)
+              .documentation(SENTINEL_MASTERID_DOC)
+              .defaultValue("master")
+              .importance(ConfigDef.Importance.LOW)
+              .build()
         );
   }
 
   public List<RedisURI> redisURIs() {
     List<RedisURI> result = new ArrayList<>();
+    RedisURI.Builder builder = RedisURI.builder();
 
-    for (HostAndPort host : this.hosts) {
-      RedisURI.Builder builder = RedisURI.builder();
-      builder.withHost(host.getHost());
-      builder.withPort(host.getPort());
-      builder.withDatabase(this.database);
-      if (!Strings.isNullOrEmpty(this.password)) {
-        builder.withPassword(this.password);
+    if (this.clientMode == ClientMode.Sentinel) {
+      for (HostAndPort host : this.hosts) {
+        if (!Strings.isNullOrEmpty(this.password)) {
+          builder.withSentinel(host.getHost(), host.getPort());
+        } else {
+          builder.withSentinel(host.getHost(), host.getPort(), this.password);
+        }
+        builder.withSentinelMasterId(this.sentinelMasterId);
+        builder.withDatabase(this.database);
+        builder.withSsl(this.sslEnabled);
+        result.add(builder.build());
       }
-      builder.withSsl(this.sslEnabled);
-      result.add(builder.build());
+    } else {
+      for (HostAndPort host : this.hosts) {
+        builder.withHost(host.getHost());
+        builder.withPort(host.getPort());
+        builder.withDatabase(this.database);
+        if (!Strings.isNullOrEmpty(this.password)) {
+          builder.withPassword(this.password);
+        }
+        builder.withSsl(this.sslEnabled);
+        result.add(builder.build());
+      }
     }
 
     return result;
@@ -254,7 +280,8 @@ class RedisConnectorConfig extends AbstractConfig {
 
   public enum ClientMode {
     Standalone,
-    Cluster
+    Cluster,
+    Sentinel
   }
 
   public enum RedisSslProvider {

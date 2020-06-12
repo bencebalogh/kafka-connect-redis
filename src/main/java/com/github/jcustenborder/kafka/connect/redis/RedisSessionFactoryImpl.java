@@ -153,7 +153,8 @@ class RedisSessionFactoryImpl implements RedisSessionFactory {
 
         final StatefulRedisClusterConnection<byte[], byte[]> connection = client.connect(codec);
         result = new RedisSessionImpl(client, connection, connection.async(), config);
-      } else if (RedisConnectorConfig.ClientMode.Standalone == config.clientMode) {
+      } else if (RedisConnectorConfig.ClientMode.Standalone == config.clientMode
+                  || RedisConnectorConfig.ClientMode.Sentinel == config.clientMode) {
         final ClientOptions.Builder clientOptions = ClientOptions.builder()
             .socketOptions(socketOptions)
             .requestQueueSize(config.requestQueueSize)
