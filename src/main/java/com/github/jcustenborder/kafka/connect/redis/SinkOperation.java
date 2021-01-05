@@ -59,6 +59,12 @@ abstract class SinkOperation {
           String.format("Timeout after %s ms while waiting for operation to complete.", this.config.operationTimeoutMs)
       );
     }
+    String error = future.getError();
+    if (error != null) {
+      throw new RetriableException(
+          String.format("Received error from Redis: %s", error)
+      );
+    }
   }
 
   public static SinkOperation create(Type type, RedisSinkConnectorConfig config, int size) {
