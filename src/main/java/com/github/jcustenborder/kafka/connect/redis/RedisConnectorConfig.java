@@ -252,10 +252,9 @@ class RedisConnectorConfig extends AbstractConfig {
 
     if (this.clientMode == ClientMode.Sentinel) {
       for (HostAndPort host : this.hosts) {
+        builder.withSentinel(host.getHost(), host.getPort());
         if (!Strings.isNullOrEmpty(this.password)) {
-          builder.withSentinel(host.getHost(), host.getPort());
-        } else {
-          builder.withSentinel(host.getHost(), host.getPort(), this.password);
+          builder.withPassword(this.password);
         }
         builder.withSentinelMasterId(this.sentinelMasterId);
         builder.withDatabase(this.database);
